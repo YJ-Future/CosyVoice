@@ -56,7 +56,10 @@ class CosyVoiceModel:
     def load(self, llm_model, flow_model, hift_model):
         self.llm.load_state_dict(torch.load(llm_model, map_location=self.device))
         self.llm.to(self.device).eval()
-        self.llm.half()
+        if (self.device == "cuda"): 
+            self.llm.half()
+        else:
+            self.llm.float()
         self.flow.load_state_dict(torch.load(flow_model, map_location=self.device))
         self.flow.to(self.device).eval()
         self.hift.load_state_dict(torch.load(hift_model, map_location=self.device))
@@ -80,6 +83,9 @@ class CosyVoiceModel:
         self.flow.decoder.estimator = onnxruntime.InferenceSession(flow_decoder_estimator_model, sess_options=option, providers=providers)
 
     def llm_job(self, text, prompt_text, llm_prompt_speech_token, llm_embedding, uuid):
+        embedding = llm_embedding.to(self.device).float()
+        if (self.device == "cuda"):
+            embedding = llm_embedding.to(self.device).half()
         with self.llm_context:
             for i in self.llm.inference(text=text.to(self.device),
                                         text_len=torch.tensor([text.shape[1]], dtype=torch.int32).to(self.device),
@@ -87,7 +93,7 @@ class CosyVoiceModel:
                                         prompt_text_len=torch.tensor([prompt_text.shape[1]], dtype=torch.int32).to(self.device),
                                         prompt_speech_token=llm_prompt_speech_token.to(self.device),
                                         prompt_speech_token_len=torch.tensor([llm_prompt_speech_token.shape[1]], dtype=torch.int32).to(self.device),
-                                        embedding=llm_embedding.to(self.device).half()):
+                                        embedding=embedding):
                 self.tts_speech_token_dict[uuid].append(i)
         self.llm_end_dict[uuid] = True
 
